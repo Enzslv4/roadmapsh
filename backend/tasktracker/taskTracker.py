@@ -8,20 +8,16 @@ from enum import Enum
 DATA_DIR = "data"
 FILE = os.path.join(DATA_DIR, "list.json")
 
-
 class Status(Enum):
     TODO = "todo"
     IN_PROGRESS = "in-progress"
     DONE = "done"
 
-
 class TaskFileError(Exception):
     """Raised when the JSON file exists but can't be used."""
 
-
 def timestamp():
     return datetime.now().isoformat(timespec="seconds")
-
 
 class TaskTracker:
 

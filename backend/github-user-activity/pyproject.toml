@@ -1,0 +1,15 @@
+    [build-system]
+    requires = ["setuptools>=61"]
+    build-backend = "setuptools.build_meta"
+
+    [project]
+    name = "gh_activity"
+    version = "0.1.0"
+    description = "GitHub activity tracker from roadmap.sh"
+    requires-python = ">=3.8"
+
+    [project.scripts]
+    gh_activity = "gh_activity:main"
+
+    [tool.setuptools]
+    py-modules = ["gh_activity", "gh_activity_cli", "messages"]
