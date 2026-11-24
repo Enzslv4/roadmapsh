@@ -1,37 +1,115 @@
-# General class of the task tracker
+# Core logic of the task tracker: tasks are stored in a JSON file
 
+import json
+import os
+from datetime import datetime
 from enum import Enum
 
+DATA_DIR = "data"
+FILE = os.path.join(DATA_DIR, "list.json")
+
+
 class Status(Enum):
-    NOT_DONE = "not done"
-    IN_PROGRESS = "in progress"
+    TODO = "todo"
+    IN_PROGRESS = "in-progress"
     DONE = "done"
 
-STATUS_CHOICES = {
-    1: Status.NOT_DONE,
-    2: Status.IN_PROGRESS,
-    3: Status.DONE
-}
 
-class TaskTracker ():
+class TaskFileError(Exception):
+    """Raised when the JSON file exists but can't be used."""
+
+
+def timestamp():
+    return datetime.now().isoformat(timespec="seconds")
+
+
+class TaskTracker:
 
     def __init__(self):
-        self.taskList = {}
+        self.tasks = self.load()
 
-    def addTask(self, taskName):
-        if taskName in self.taskList:
+    # ---------- Persistence ----------
+
+    def load(self):
+        # No file yet: start with an empty list (the file is created on the first save)
+        if not os.path.exists(FILE):
+            return []
+
+        try:
+            with open(FILE, encoding="utf-8") as f:
+                content = f.read().strip()
+        except OSError as e:
+            raise TaskFileError(f"could not read {FILE} ({e})") from e
+
+        # Empty file counts as an empty list
+        if not content:
+            return []
+
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            raise TaskFileError(f"{FILE} is not valid JSON") from e
+
+        if not isinstance(data, list):
+            raise TaskFileError(f"{FILE} must contain a list of tasks")
+
+        return data
+
+    def save(self):
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(FILE, "w", encoding="utf-8") as f:
+            json.dump(self.tasks, f, indent=4, ensure_ascii=False)
+
+    # ---------- Queries (read only) ----------
+
+    def findTask(self, taskId):
+        for task in self.tasks:
+            if task["id"] == taskId:
+                return task
+        return None
+
+    def listTasks(self, status=None):
+        if status is None:
+            return list(self.tasks)
+        return [task for task in self.tasks if task["status"] == status.value]
+
+    # ---------- Changes (always save) ----------
+
+    def addTask(self, description):
+        now = timestamp()
+        newId = max((task["id"] for task in self.tasks), default=0) + 1
+        self.tasks.append({
+            "id": newId,
+            "description": description,
+            "status": Status.TODO.value,
+            "createdAt": now,
+            "updatedAt": now,
+        })
+        self.save()
+        return newId
+
+    def updateTask(self, taskId, description):
+        task = self.findTask(taskId)
+        if task is None:
             return False
-        self.taskList[taskName] = Status.NOT_DONE
+        task["description"] = description
+        task["updatedAt"] = timestamp()
+        self.save()
         return True
 
-    def deleteTask(self, taskName):
-        return self.taskList.pop(taskName, None) is not None
-
-    def updateTask(self, taskName, statusNumber):
-        if taskName not in self.taskList or statusNumber not in STATUS_CHOICES:
+    def deleteTask(self, taskId):
+        task = self.findTask(taskId)
+        if task is None:
             return False
-        self.taskList[taskName] = STATUS_CHOICES[statusNumber]
+        self.tasks.remove(task)
+        self.save()
         return True
 
-    def taskByStatus(self, status):
-        return list(task for task, s in self.taskList.items() if s == status)
+    def markTask(self, taskId, status):
+        task = self.findTask(taskId)
+        if task is None:
+            return False
+        task["status"] = status.value
+        task["updatedAt"] = timestamp()
+        self.save()
+        return True
